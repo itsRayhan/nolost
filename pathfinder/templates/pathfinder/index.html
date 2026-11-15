@@ -1,0 +1,175 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nolost maps</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{% static 'pathfinder/css/style.css' %}" />
+    {% if not google_maps_api_key or google_maps_api_key == "YOUR_GOOGLE_MAPS_API_KEY_HERE" %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    {% endif %}
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- Header -->
+        <header class="app-header">
+            <h1 class="app-title">Nolost maps</h1>
+            <p class="app-subtitle">Find the best path between two locations using different pathfinding algorithms.</p>
+        </header>
+
+        <!-- Main Card -->
+        <main class="main-card">
+            <!-- Controls Row -->
+            <form id="pathfinder-form" class="controls-grid">
+                <div class="form-group">
+                    <label for="source-select">Source Location</label>
+                    <div class="select-wrapper">
+                        <select id="source-select" name="source">
+                            {% for node in nodes %}
+                            <option value="{{ node.id }}" {% if node.id == "A" %}selected{% endif %}>
+                                {{ node.label }} ({{ node.landmark }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="destination-select">Destination Location</label>
+                    <div class="select-wrapper">
+                        <select id="destination-select" name="destination">
+                            {% for node in nodes %}
+                            <option value="{{ node.id }}" {% if node.id == "J" %}selected{% endif %}>
+                                {{ node.label }} ({{ node.landmark }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="algorithm-select">Select Algorithm</label>
+                    <div class="select-wrapper">
+                        <select id="algorithm-select" name="algorithm">
+                            <option value="A*" selected>A*</option>
+                            <option value="Dijkstra">Dijkstra</option>
+                            <option value="BFS">BFS</option>
+                            <option value="DFS">DFS</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group button-group">
+                    <button type="submit" id="find-path-btn" class="btn-primary">Find Path</button>
+                </div>
+            </form>
+
+            <!-- Map Visualization Section -->
+            <section class="map-section">
+                <h2 class="section-heading">Map Visualization</h2>
+                <div class="map-legend">
+                    <div class="legend-item">
+                        <span class="legend-line legend-graph"></span>
+                        <span>Graph Connections</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-line legend-route"></span>
+                        <span>Calculated Route</span>
+                    </div>
+                </div>
+
+                {% if not google_maps_api_key or google_maps_api_key == "YOUR_GOOGLE_MAPS_API_KEY_HERE" %}
+                <div class="api-notice">
+                    <strong>Preview Mode:</strong> Add your <code>GOOGLE_MAPS_API_KEY</code> in <code>.env</code> (or Render Environment Variables) to switch from OpenStreetMap fallback to Google Maps JavaScript API.
+                </div>
+                {% endif %}
+
+                <div id="map" class="map-container"></div>
+            </section>
+
+            <!-- Pathfinding Results Section -->
+            <section class="results-section" id="results-section">
+                <h2 class="section-heading">Pathfinding Results</h2>
+
+                <!-- Selected Algorithm Summary Cards -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span class="metric-label">Algorithm Used</span>
+                        <span class="metric-value" id="res-algorithm">A*</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Total Distance</span>
+                        <span class="metric-value" id="res-distance">— km</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Nodes Visited</span>
+                        <span class="metric-value" id="res-explored">—</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Execution Time</span>
+                        <span class="metric-value" id="res-time">— ms</span>
+                    </div>
+                </div>
+
+                <!-- Route Sequence -->
+                <div class="route-box">
+                    <span class="route-box-label">Computed Route:</span>
+                    <div class="route-sequence" id="res-path-sequence"></div>
+                </div>
+
+                <!-- Performance Comparison Table -->
+                <div class="comparison-wrapper">
+                    <h3 class="subsection-heading">Algorithm Performance Comparison</h3>
+                    <div class="table-responsive">
+                        <table class="comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Algorithm</th>
+                                    <th>Computed Path</th>
+                                    <th>Hops</th>
+                                    <th>Total Distance (km)</th>
+                                    <th>Nodes Explored</th>
+                                    <th>Time (ms)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="comparison-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Embedded Graph & Initial Result Data -->
+    <script>
+        window.NOLOst_DATA = {
+            nodes: {{ nodes_json|safe }},
+            edges: {{ edges_json|safe }},
+            defaultResult: {{ default_result_json|safe }},
+            apiUrl: "{% url 'find_path_api' %}",
+            hasGoogleMapsKey: {% if google_maps_api_key and google_maps_api_key != "YOUR_GOOGLE_MAPS_API_KEY_HERE" %}true{% else %}false{% endif %}
+        };
+    </script>
+
+    <script src="{% static 'pathfinder/js/map.js' %}"></script>
+
+    {% if google_maps_api_key and google_maps_api_key != "YOUR_GOOGLE_MAPS_API_KEY_HERE" %}
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initGoogleMap"
+        async
+        defer
+    ></script>
+    {% else %}
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            initFallbackLeafletMap();
+        });
+    </script>
+    {% endif %}
+</body>
+</html>

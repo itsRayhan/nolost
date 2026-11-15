@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: nolost-maps
+    runtime: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn nolost_maps.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: GOOGLE_MAPS_API_KEY
+        value: "AIzaSyBmpknwM6UjzlxRttTAj0wbf6NoelcGI6Y"
